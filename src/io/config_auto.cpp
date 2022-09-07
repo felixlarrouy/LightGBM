@@ -33,7 +33,6 @@ const std::unordered_map<std::string, std::string>& Config::alias_table() {
   {"num_trees", "num_iterations"},
   {"num_round", "num_iterations"},
   {"num_rounds", "num_iterations"},
-  {"nrounds", "num_iterations"},
   {"num_boost_round", "num_iterations"},
   {"n_estimators", "num_iterations"},
   {"max_iter", "num_iterations"},
@@ -127,7 +126,12 @@ const std::unordered_map<std::string, std::string>& Config::alias_table() {
   {"use_two_round_loading", "two_round"},
   {"has_header", "header"},
   {"label", "label_column"},
+
   {"weight", "weight_column"},
+
+  //obj2
+  {"label2", "label2_column"},
+
   {"group", "group_column"},
   {"group_id", "group_column"},
   {"query_column", "group_column"},
@@ -266,13 +270,15 @@ const std::unordered_set<std::string>& Config::parameter_set() {
   "header",
   "label_column",
   "weight_column",
+  //obj2
+  "label2_column",
+  //
   "group_column",
   "ignore_column",
   "categorical_feature",
   "forcedbins_filename",
   "save_binary",
   "precise_float_parser",
-  "parser_config_file",
   "start_iteration_predict",
   "num_iteration_predict",
   "predict_raw_score",
@@ -297,6 +303,12 @@ const std::unordered_set<std::string>& Config::parameter_set() {
   "poisson_max_delta_step",
   "tweedie_variance_power",
   "lambdarank_truncation_level",
+
+  //obj2
+  "lambdarank_truncation_level_obj2",
+  "weight_obj2",
+  //end
+
   "lambdarank_norm",
   "label_gain",
   "metric",
@@ -529,6 +541,10 @@ void Config::GetMembersFromString(const std::unordered_map<std::string, std::str
 
   GetString(params, "weight_column", &weight_column);
 
+  //obj2
+  GetString(params, "label2_column", &label2_column);
+  //
+
   GetString(params, "group_column", &group_column);
 
   GetString(params, "ignore_column", &ignore_column);
@@ -540,8 +556,6 @@ void Config::GetMembersFromString(const std::unordered_map<std::string, std::str
   GetBool(params, "save_binary", &save_binary);
 
   GetBool(params, "precise_float_parser", &precise_float_parser);
-
-  GetString(params, "parser_config_file", &parser_config_file);
 
   GetInt(params, "start_iteration_predict", &start_iteration_predict);
 
@@ -599,6 +613,18 @@ void Config::GetMembersFromString(const std::unordered_map<std::string, std::str
 
   GetInt(params, "lambdarank_truncation_level", &lambdarank_truncation_level);
   CHECK_GT(lambdarank_truncation_level, 0);
+
+
+  //start second objective parameters
+  GetInt(params, "lambdarank_truncation_level_obj2", &lambdarank_truncation_level_obj2);
+  CHECK_GT(lambdarank_truncation_level_obj2, 0);
+
+  GetDouble(params, "weight_obj2", &weight_obj2);
+  CHECK_GE(weight_obj2, 0.0);
+  //end second objective parameters
+
+  GetDouble(params, "poisson_max_delta_step", &poisson_max_delta_step);
+  CHECK_GT(poisson_max_delta_step, 0.0);
 
   GetBool(params, "lambdarank_norm", &lambdarank_norm);
 
@@ -721,12 +747,14 @@ std::string Config::SaveMembersToString() const {
   str_buf << "[header: " << header << "]\n";
   str_buf << "[label_column: " << label_column << "]\n";
   str_buf << "[weight_column: " << weight_column << "]\n";
+  //obj2
+  str_buf << "[label2_column: " << label2_column << "]\n";
+  //
   str_buf << "[group_column: " << group_column << "]\n";
   str_buf << "[ignore_column: " << ignore_column << "]\n";
   str_buf << "[categorical_feature: " << categorical_feature << "]\n";
   str_buf << "[forcedbins_filename: " << forcedbins_filename << "]\n";
   str_buf << "[precise_float_parser: " << precise_float_parser << "]\n";
-  str_buf << "[parser_config_file: " << parser_config_file << "]\n";
   str_buf << "[objective_seed: " << objective_seed << "]\n";
   str_buf << "[num_class: " << num_class << "]\n";
   str_buf << "[is_unbalance: " << is_unbalance << "]\n";
@@ -739,6 +767,12 @@ std::string Config::SaveMembersToString() const {
   str_buf << "[poisson_max_delta_step: " << poisson_max_delta_step << "]\n";
   str_buf << "[tweedie_variance_power: " << tweedie_variance_power << "]\n";
   str_buf << "[lambdarank_truncation_level: " << lambdarank_truncation_level << "]\n";
+
+  //start obj2
+  str_buf << "[lambdarank_truncation_level_obj2: " << lambdarank_truncation_level_obj2 << "]\n";
+  str_buf << "[weight_obj2: " << weight_obj2 << "]\n";
+  //end obj2
+
   str_buf << "[lambdarank_norm: " << lambdarank_norm << "]\n";
   str_buf << "[label_gain: " << Common::Join(label_gain, ",") << "]\n";
   str_buf << "[eval_at: " << Common::Join(eval_at, ",") << "]\n";
@@ -754,144 +788,6 @@ std::string Config::SaveMembersToString() const {
   str_buf << "[gpu_use_dp: " << gpu_use_dp << "]\n";
   str_buf << "[num_gpu: " << num_gpu << "]\n";
   return str_buf.str();
-}
-
-const std::unordered_map<std::string, std::vector<std::string>>& Config::parameter2aliases() {
-  static std::unordered_map<std::string, std::vector<std::string>> map({
-    {"config", {"config_file"}},
-    {"task", {"task_type"}},
-    {"objective", {"objective_type", "app", "application", "loss"}},
-    {"boosting", {"boosting_type", "boost"}},
-    {"data", {"train", "train_data", "train_data_file", "data_filename"}},
-    {"valid", {"test", "valid_data", "valid_data_file", "test_data", "test_data_file", "valid_filenames"}},
-    {"num_iterations", {"num_iteration", "n_iter", "num_tree", "num_trees", "num_round", "num_rounds", "nrounds", "num_boost_round", "n_estimators", "max_iter"}},
-    {"learning_rate", {"shrinkage_rate", "eta"}},
-    {"num_leaves", {"num_leaf", "max_leaves", "max_leaf", "max_leaf_nodes"}},
-    {"tree_learner", {"tree", "tree_type", "tree_learner_type"}},
-    {"num_threads", {"num_thread", "nthread", "nthreads", "n_jobs"}},
-    {"device_type", {"device"}},
-    {"seed", {"random_seed", "random_state"}},
-    {"deterministic", {}},
-    {"force_col_wise", {}},
-    {"force_row_wise", {}},
-    {"histogram_pool_size", {"hist_pool_size"}},
-    {"max_depth", {}},
-    {"min_data_in_leaf", {"min_data_per_leaf", "min_data", "min_child_samples", "min_samples_leaf"}},
-    {"min_sum_hessian_in_leaf", {"min_sum_hessian_per_leaf", "min_sum_hessian", "min_hessian", "min_child_weight"}},
-    {"bagging_fraction", {"sub_row", "subsample", "bagging"}},
-    {"pos_bagging_fraction", {"pos_sub_row", "pos_subsample", "pos_bagging"}},
-    {"neg_bagging_fraction", {"neg_sub_row", "neg_subsample", "neg_bagging"}},
-    {"bagging_freq", {"subsample_freq"}},
-    {"bagging_seed", {"bagging_fraction_seed"}},
-    {"feature_fraction", {"sub_feature", "colsample_bytree"}},
-    {"feature_fraction_bynode", {"sub_feature_bynode", "colsample_bynode"}},
-    {"feature_fraction_seed", {}},
-    {"extra_trees", {"extra_tree"}},
-    {"extra_seed", {}},
-    {"early_stopping_round", {"early_stopping_rounds", "early_stopping", "n_iter_no_change"}},
-    {"first_metric_only", {}},
-    {"max_delta_step", {"max_tree_output", "max_leaf_output"}},
-    {"lambda_l1", {"reg_alpha", "l1_regularization"}},
-    {"lambda_l2", {"reg_lambda", "lambda", "l2_regularization"}},
-    {"linear_lambda", {}},
-    {"min_gain_to_split", {"min_split_gain"}},
-    {"drop_rate", {"rate_drop"}},
-    {"max_drop", {}},
-    {"skip_drop", {}},
-    {"xgboost_dart_mode", {}},
-    {"uniform_drop", {}},
-    {"drop_seed", {}},
-    {"top_rate", {}},
-    {"other_rate", {}},
-    {"min_data_per_group", {}},
-    {"max_cat_threshold", {}},
-    {"cat_l2", {}},
-    {"cat_smooth", {}},
-    {"max_cat_to_onehot", {}},
-    {"top_k", {"topk"}},
-    {"monotone_constraints", {"mc", "monotone_constraint", "monotonic_cst"}},
-    {"monotone_constraints_method", {"monotone_constraining_method", "mc_method"}},
-    {"monotone_penalty", {"monotone_splits_penalty", "ms_penalty", "mc_penalty"}},
-    {"feature_contri", {"feature_contrib", "fc", "fp", "feature_penalty"}},
-    {"forcedsplits_filename", {"fs", "forced_splits_filename", "forced_splits_file", "forced_splits"}},
-    {"refit_decay_rate", {}},
-    {"cegb_tradeoff", {}},
-    {"cegb_penalty_split", {}},
-    {"cegb_penalty_feature_lazy", {}},
-    {"cegb_penalty_feature_coupled", {}},
-    {"path_smooth", {}},
-    {"interaction_constraints", {}},
-    {"verbosity", {"verbose"}},
-    {"input_model", {"model_input", "model_in"}},
-    {"output_model", {"model_output", "model_out"}},
-    {"saved_feature_importance_type", {}},
-    {"snapshot_freq", {"save_period"}},
-    {"linear_tree", {"linear_trees"}},
-    {"max_bin", {"max_bins"}},
-    {"max_bin_by_feature", {}},
-    {"min_data_in_bin", {}},
-    {"bin_construct_sample_cnt", {"subsample_for_bin"}},
-    {"data_random_seed", {"data_seed"}},
-    {"is_enable_sparse", {"is_sparse", "enable_sparse", "sparse"}},
-    {"enable_bundle", {"is_enable_bundle", "bundle"}},
-    {"use_missing", {}},
-    {"zero_as_missing", {}},
-    {"feature_pre_filter", {}},
-    {"pre_partition", {"is_pre_partition"}},
-    {"two_round", {"two_round_loading", "use_two_round_loading"}},
-    {"header", {"has_header"}},
-    {"label_column", {"label"}},
-    {"weight_column", {"weight"}},
-    {"group_column", {"group", "group_id", "query_column", "query", "query_id"}},
-    {"ignore_column", {"ignore_feature", "blacklist"}},
-    {"categorical_feature", {"cat_feature", "categorical_column", "cat_column", "categorical_features"}},
-    {"forcedbins_filename", {}},
-    {"save_binary", {"is_save_binary", "is_save_binary_file"}},
-    {"precise_float_parser", {}},
-    {"parser_config_file", {}},
-    {"start_iteration_predict", {}},
-    {"num_iteration_predict", {}},
-    {"predict_raw_score", {"is_predict_raw_score", "predict_rawscore", "raw_score"}},
-    {"predict_leaf_index", {"is_predict_leaf_index", "leaf_index"}},
-    {"predict_contrib", {"is_predict_contrib", "contrib"}},
-    {"predict_disable_shape_check", {}},
-    {"pred_early_stop", {}},
-    {"pred_early_stop_freq", {}},
-    {"pred_early_stop_margin", {}},
-    {"output_result", {"predict_result", "prediction_result", "predict_name", "prediction_name", "pred_name", "name_pred"}},
-    {"convert_model_language", {}},
-    {"convert_model", {"convert_model_file"}},
-    {"objective_seed", {}},
-    {"num_class", {"num_classes"}},
-    {"is_unbalance", {"unbalance", "unbalanced_sets"}},
-    {"scale_pos_weight", {}},
-    {"sigmoid", {}},
-    {"boost_from_average", {}},
-    {"reg_sqrt", {}},
-    {"alpha", {}},
-    {"fair_c", {}},
-    {"poisson_max_delta_step", {}},
-    {"tweedie_variance_power", {}},
-    {"lambdarank_truncation_level", {}},
-    {"lambdarank_norm", {}},
-    {"label_gain", {}},
-    {"metric", {"metrics", "metric_types"}},
-    {"metric_freq", {"output_freq"}},
-    {"is_provide_training_metric", {"training_metric", "is_training_metric", "train_metric"}},
-    {"eval_at", {"ndcg_eval_at", "ndcg_at", "map_eval_at", "map_at"}},
-    {"multi_error_top_k", {}},
-    {"auc_mu_weights", {}},
-    {"num_machines", {"num_machine"}},
-    {"local_listen_port", {"local_port", "port"}},
-    {"time_out", {}},
-    {"machine_list_filename", {"machine_list_file", "machine_list", "mlist"}},
-    {"machines", {"workers", "nodes"}},
-    {"gpu_platform_id", {}},
-    {"gpu_device_id", {}},
-    {"gpu_use_dp", {}},
-    {"num_gpu", {}},
-  });
-  return map;
 }
 
 }  // namespace LightGBM

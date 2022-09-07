@@ -78,22 +78,12 @@ struct Config {
     const std::unordered_map<std::string, std::string>& params,
     const std::string& name, bool* out);
 
-  /*!
-  * \brief Sort aliases by length and then alphabetically
-  * \param x Alias 1
-  * \param y Alias 2
-  * \return true if x has higher priority than y
-  */
-  inline static bool SortAlias(const std::string& x, const std::string& y);
-
   static void KV2Map(std::unordered_map<std::string, std::string>* params, const char* kv);
   static std::unordered_map<std::string, std::string> Str2Map(const char* parameters);
 
-  #ifndef __NVCC__
   #pragma region Parameters
 
   #pragma region Core Parameters
-  #endif  // __NVCC__
 
   // [no-save]
   // [doc-only]
@@ -171,7 +161,7 @@ struct Config {
   // desc = **Note**: can be used only in CLI version
   std::vector<std::string> valid;
 
-  // alias = num_iteration, n_iter, num_tree, num_trees, num_round, num_rounds, nrounds, num_boost_round, n_estimators, max_iter
+  // alias = num_iteration, n_iter, num_tree, num_trees, num_round, num_rounds, num_boost_round, n_estimators, max_iter
   // check = >=0
   // desc = number of boosting iterations
   // desc = **Note**: internally, LightGBM constructs ``num_class * num_iterations`` trees for multi-class classification problems
@@ -202,7 +192,6 @@ struct Config {
   std::string tree_learner = "serial";
 
   // alias = num_thread, nthread, nthreads, n_jobs
-  // desc = used only in ``train``, ``prediction`` and ``refit`` tasks or in correspondent functions of language-specific packages
   // desc = number of threads for LightGBM
   // desc = ``0`` means default number of threads in OpenMP
   // desc = for the best speed, set this to the number of **real CPU cores**, not the number of threads (most CPUs use `hyper-threading <https://en.wikipedia.org/wiki/Hyper-threading>`__ to generate 2 threads per CPU core)
@@ -214,14 +203,12 @@ struct Config {
 
   // [doc-only]
   // type = enum
-  // options = cpu, gpu, cuda, cuda_exp
+  // options = cpu, gpu, cuda
   // alias = device
   // desc = device for the tree learning, you can use GPU to achieve the faster learning
   // desc = **Note**: it is recommended to use the smaller ``max_bin`` (e.g. 63) to get the better speed up
   // desc = **Note**: for the faster speed, GPU uses 32-bit float point to sum up by default, so this may affect the accuracy for some tasks. You can set ``gpu_use_dp=true`` to enable 64-bit float point, but it will slow down the training
   // desc = **Note**: refer to `Installation Guide <./Installation-Guide.rst#build-gpu-version>`__ to build LightGBM with GPU support
-  // desc = **Note**: ``cuda_exp`` is an experimental CUDA version, the installation guide for ``cuda_exp`` is identical with ``cuda``
-  // desc = **Note**: ``cuda_exp`` is faster than ``cuda`` and will replace ``cuda`` in the future
   std::string device_type = "cpu";
 
   // [doc-only]
@@ -240,11 +227,9 @@ struct Config {
   // desc = **Note**: to avoid potential instability due to numerical issues, please set ``force_col_wise=true`` or ``force_row_wise=true`` when setting ``deterministic=true``
   bool deterministic = false;
 
-  #ifndef __NVCC__
   #pragma endregion
 
   #pragma region Learning Control Parameters
-  #endif  // __NVCC__
 
   // desc = used only with ``cpu`` device type
   // desc = set this to ``true`` to force col-wise histogram building
@@ -539,7 +524,7 @@ struct Config {
   // desc = if set to zero, no smoothing is applied
   // desc = if ``path_smooth > 0`` then ``min_data_in_leaf`` must be at least ``2``
   // desc = larger values give stronger regularization
-  // descl2 = the weight of each node is ``w * (n / path_smooth) / (n / path_smooth + 1) + w_p / (n / path_smooth + 1)``, where ``n`` is the number of samples in the node, ``w`` is the optimal node weight to minimise the loss (approximately ``-sum_gradients / sum_hessians``), and ``w_p`` is the weight of the parent node
+  // descl2 = the weight of each node is ``(n / path_smooth) * w + w_p / (n / path_smooth + 1)``, where ``n`` is the number of samples in the node, ``w`` is the optimal node weight to minimise the loss (approximately ``-sum_gradients / sum_hessians``), and ``w_p`` is the weight of the parent node
   // descl2 = note that the parent output ``w_p`` itself has smoothing applied, unless it is the root node, so that the smoothing effect accumulates with the tree depth
   double path_smooth = 0;
 
@@ -582,19 +567,16 @@ struct Config {
   // desc = **Note**: can be used only in CLI version
   int snapshot_freq = -1;
 
-  #ifndef __NVCC__
   #pragma endregion
 
   #pragma region IO Parameters
 
   #pragma region Dataset Parameters
-  #endif  // __NVCC__
 
   // alias = linear_trees
   // desc = fit piecewise linear gradient boosting tree
   // descl2 = tree splits are chosen in the usual way, but the model at each leaf is linear instead of constant
   // descl2 = the linear model at each leaf includes all the numerical features in that leaf's branch
-  // descl2 = the first tree has constant leaf values
   // descl2 = categorical features are used for splits as normal but are not used in the linear models
   // descl2 = missing values should not be encoded as ``0``. Use ``np.nan`` for Python, ``NA`` for the CLI, and ``NA``, ``NA_real_``, or ``NA_integer_`` for R
   // descl2 = it is recommended to rescale data before training so that features have similar mean and standard deviation
@@ -663,12 +645,12 @@ struct Config {
   // alias = two_round_loading, use_two_round_loading
   // desc = set this to ``true`` if data file is too big to fit in memory
   // desc = by default, LightGBM will map data file to memory and load features from memory. This will provide faster data loading speed, but may cause run out of memory error when the data file is very big
-  // desc = **Note**: works only in case of loading data directly from text file
+  // desc = **Note**: works only in case of loading data directly from file
   bool two_round = false;
 
   // alias = has_header
   // desc = set this to ``true`` if input data has header
-  // desc = **Note**: works only in case of loading data directly from text file
+  // desc = **Note**: works only in case of loading data directly from file
   bool header = false;
 
   // type = int or string
@@ -677,17 +659,20 @@ struct Config {
   // desc = use number for index, e.g. ``label=0`` means column\_0 is the label
   // desc = add a prefix ``name:`` for column name, e.g. ``label=name:is_click``
   // desc = if omitted, the first column in the training data is used as the label
-  // desc = **Note**: works only in case of loading data directly from text file
+  // desc = **Note**: works only in case of loading data directly from file
   std::string label_column = "";
+
+//obj2
+  std::string label2_column = "";
+//
 
   // type = int or string
   // alias = weight
   // desc = used to specify the weight column
   // desc = use number for index, e.g. ``weight=0`` means column\_0 is the weight
   // desc = add a prefix ``name:`` for column name, e.g. ``weight=name:weight``
-  // desc = **Note**: works only in case of loading data directly from text file
+  // desc = **Note**: works only in case of loading data directly from file
   // desc = **Note**: index starts from ``0`` and it doesn't count the label column when passing type is ``int``, e.g. when label is column\_0, and weight is column\_1, the correct parameter is ``weight=0``
-  // desc = **Note**: weights should be non-negative
   std::string weight_column = "";
 
   // type = int or string
@@ -695,7 +680,7 @@ struct Config {
   // desc = used to specify the query/group id column
   // desc = use number for index, e.g. ``query=0`` means column\_0 is the query id
   // desc = add a prefix ``name:`` for column name, e.g. ``query=name:query_id``
-  // desc = **Note**: works only in case of loading data directly from text file
+  // desc = **Note**: works only in case of loading data directly from file
   // desc = **Note**: data should be grouped by query\_id, for more information, see `Query Data <#query-data>`__
   // desc = **Note**: index starts from ``0`` and it doesn't count the label column when passing type is ``int``, e.g. when label is column\_0 and query\_id is column\_1, the correct parameter is ``query=0``
   std::string group_column = "";
@@ -705,7 +690,7 @@ struct Config {
   // desc = used to specify some ignoring columns in training
   // desc = use number for index, e.g. ``ignore_column=0,1,2`` means column\_0, column\_1 and column\_2 will be ignored
   // desc = add a prefix ``name:`` for column name, e.g. ``ignore_column=name:c1,c2,c3`` means c1, c2 and c3 will be ignored
-  // desc = **Note**: works only in case of loading data directly from text file
+  // desc = **Note**: works only in case of loading data directly from file
   // desc = **Note**: index starts from ``0`` and it doesn't count the label column when passing type is ``int``
   // desc = **Note**: despite the fact that specified columns will be completely ignored during the training, they still should have a valid format allowing LightGBM to load file successfully
   std::string ignore_column = "";
@@ -715,13 +700,12 @@ struct Config {
   // desc = used to specify categorical features
   // desc = use number for index, e.g. ``categorical_feature=0,1,2`` means column\_0, column\_1 and column\_2 are categorical features
   // desc = add a prefix ``name:`` for column name, e.g. ``categorical_feature=name:c1,c2,c3`` means c1, c2 and c3 are categorical features
-  // desc = **Note**: all values will be cast to ``int32`` (integer codes will be extracted from pandas categoricals in the Python-package)
+  // desc = **Note**: only supports categorical with ``int`` type (not applicable for data represented as pandas DataFrame in Python-package)
   // desc = **Note**: index starts from ``0`` and it doesn't count the label column when passing type is ``int``
   // desc = **Note**: all values should be less than ``Int32.MaxValue`` (2147483647)
   // desc = **Note**: using large values could be memory consuming. Tree decision rule works best when categorical features are presented by consecutive integers starting from zero
   // desc = **Note**: all negative values will be treated as **missing values**
   // desc = **Note**: the output cannot be monotonically constrained with respect to a categorical feature
-  // desc = **Note**: floating point numbers in categorical features will be rounded towards 0
   std::string categorical_feature = "";
 
   // desc = path to a ``.json`` file that specifies bin upper bounds for some or all features
@@ -740,16 +724,9 @@ struct Config {
   // desc = **Note**: setting this to ``true`` may lead to much slower text parsing
   bool precise_float_parser = false;
 
-  // desc = path to a ``.json`` file that specifies customized parser initialized configuration
-  // desc = see `lightgbm-transform <https://github.com/microsoft/lightgbm-transform>`__ for usage examples
-  // desc = **Note**: ``lightgbm-transform`` is not maintained by LightGBM's maintainers. Bug reports or feature requests should go to `issues page <https://github.com/microsoft/lightgbm-transform/issues>`__
-  std::string parser_config_file = "";
-
-  #ifndef __NVCC__
   #pragma endregion
 
   #pragma region Predict Parameters
-  #endif  // __NVCC__
 
   // [no-save]
   // desc = used only in ``prediction`` task
@@ -797,7 +774,6 @@ struct Config {
   // [no-save]
   // desc = used only in ``prediction`` task
   // desc = used only in ``classification`` and ``ranking`` applications
-  // desc = used only for predicting normal or raw scores
   // desc = if ``true``, will use early-stopping to speed up the prediction. May affect the accuracy
   // desc = **Note**: cannot be used with ``rf`` boosting type or custom objective function
   bool pred_early_stop = false;
@@ -819,11 +795,9 @@ struct Config {
   // desc = **Note**: can be used only in CLI version
   std::string output_result = "LightGBM_predict_result.txt";
 
-  #ifndef __NVCC__
   #pragma endregion
 
   #pragma region Convert Parameters
-  #endif  // __NVCC__
 
   // [no-save]
   // desc = used only in ``convert_model`` task
@@ -839,13 +813,11 @@ struct Config {
   // desc = **Note**: can be used only in CLI version
   std::string convert_model = "gbdt_prediction.cpp";
 
-  #ifndef __NVCC__
   #pragma endregion
 
   #pragma endregion
 
   #pragma region Objective Parameters
-  #endif  // __NVCC__
 
   // desc = used only in ``rank_xendcg`` objective
   // desc = random seed for objectives, if random process is needed
@@ -913,6 +885,11 @@ struct Config {
   // desc = this parameter is closely related to the desirable cutoff ``k`` in the metric **NDCG@k** that we aim at optimizing the ranker for. The optimal setting for this parameter is likely to be slightly higher than ``k`` (e.g., ``k + 3``) to include more pairs of documents to train on, but perhaps not too high to avoid deviating too much from the desired target metric **NDCG@k**
   int lambdarank_truncation_level = 30;
 
+  //start obj2
+  int lambdarank_truncation_level_obj2 = 30;
+  double weight_obj2 = 0.0;
+  //end obj2
+
   // desc = used only in ``lambdarank`` application
   // desc = set this to ``true`` to normalize the lambdas for different queries, and improve the performance for unbalanced data
   // desc = set this to ``false`` to enforce the original lambdarank algorithm
@@ -925,11 +902,9 @@ struct Config {
   // desc = separate by ``,``
   std::vector<double> label_gain;
 
-  #ifndef __NVCC__
   #pragma endregion
 
   #pragma region Metric Parameters
-  #endif  // __NVCC__
 
   // [doc-only]
   // alias = metrics, metric_types
@@ -1001,11 +976,9 @@ struct Config {
   // desc = if not specified, will use equal weights for all classes
   std::vector<double> auc_mu_weights;
 
-  #ifndef __NVCC__
   #pragma endregion
 
   #pragma region Network Parameters
-  #endif  // __NVCC__
 
   // check = >0
   // alias = num_machine
@@ -1034,11 +1007,9 @@ struct Config {
   // desc = list of machines in the following format: ``ip1:port1,ip2:port2``
   std::string machines = "";
 
-  #ifndef __NVCC__
   #pragma endregion
 
   #pragma region GPU Parameters
-  #endif  // __NVCC__
 
   // desc = OpenCL platform ID. Usually each GPU vendor exposes one OpenCL platform
   // desc = ``-1`` means the system-wide default platform
@@ -1059,11 +1030,9 @@ struct Config {
   // desc = **Note**: can be used only in CUDA implementation
   int num_gpu = 1;
 
-  #ifndef __NVCC__
   #pragma endregion
 
   #pragma endregion
-  #endif  // __NVCC__
 
   size_t file_load_progress_interval_bytes = size_t(10) * 1024 * 1024 * 1024;
 
@@ -1071,11 +1040,9 @@ struct Config {
   bool is_data_based_parallel = false;
   LIGHTGBM_EXPORT void Set(const std::unordered_map<std::string, std::string>& params);
   static const std::unordered_map<std::string, std::string>& alias_table();
-  static const std::unordered_map<std::string, std::vector<std::string>>& parameter2aliases();
   static const std::unordered_set<std::string>& parameter_set();
   std::vector<std::vector<double>> auc_mu_weights_matrix;
   std::vector<std::vector<int>> interaction_constraints_vector;
-  static const std::string DumpAliases();
 
  private:
   void CheckParamConflict();
@@ -1140,10 +1107,6 @@ inline bool Config::GetBool(
   return false;
 }
 
-inline bool Config::SortAlias(const std::string& x, const std::string& y) {
-  return x.size() < y.size() || (x.size() == y.size() && x < y);
-}
-
 struct ParameterAlias {
   static void KeyAliasTransform(std::unordered_map<std::string, std::string>* params) {
     std::unordered_map<std::string, std::string> tmp_map;
@@ -1152,7 +1115,9 @@ struct ParameterAlias {
       if (alias != Config::alias_table().end()) {  // found alias
         auto alias_set = tmp_map.find(alias->second);
         if (alias_set != tmp_map.end()) {  // alias already set
-          if (Config::SortAlias(alias_set->second, pair.first)) {
+                                           // set priority by length & alphabetically to ensure reproducible behavior
+          if (alias_set->second.size() < pair.first.size() ||
+            (alias_set->second.size() == pair.first.size() && alias_set->second < pair.first)) {
             Log::Warning("%s is set with %s=%s, %s=%s will be ignored. Current value: %s=%s",
                          alias->second.c_str(), alias_set->second.c_str(), params->at(alias_set->second).c_str(),
                          pair.first.c_str(), pair.second.c_str(), alias->second.c_str(), params->at(alias_set->second).c_str());
@@ -1219,7 +1184,7 @@ inline std::string ParseMetricAlias(const std::string& type) {
     return "l1";
   } else if (type == std::string("binary_logloss") || type == std::string("binary")) {
     return "binary_logloss";
-  } else if (type == std::string("ndcg") || type == std::string("lambdarank") || type == std::string("rank_xendcg")
+  } else if (type == std::string("ndcg") || type == std::string("lambdarank") || type == std::string("rank_xendcg") || type == std::string("lambdarank2obj")
              || type == std::string("xendcg") || type == std::string("xe_ndcg") || type == std::string("xe_ndcg_mart") || type == std::string("xendcg_mart")) {
     return "ndcg";
   } else if (type == std::string("map") || type == std::string("mean_average_precision")) {

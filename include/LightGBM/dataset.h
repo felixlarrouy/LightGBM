@@ -15,15 +15,11 @@
 
 #include <string>
 #include <functional>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include <LightGBM/cuda/cuda_column_data.hpp>
-#include <LightGBM/cuda/cuda_metadata.hpp>
 
 namespace LightGBM {
 
@@ -69,29 +65,16 @@ class Metadata {
   ~Metadata();
 
   /*!
-  * \brief Initial work, will allocate space for label, weight (if exists) and query (if exists)
+  * \brief Initial work, will allocate space for label, weight(if exists) and query(if exists)
   * \param num_data Number of training data
   * \param weight_idx Index of weight column, < 0 means doesn't exists
   * \param query_idx Index of query id column, < 0 means doesn't exists
   */
-  void Init(data_size_t num_data, int weight_idx, int query_idx);
+  //void Init(data_size_t num_data, int weight_idx, , int label2_idx, int query_idx);
+  //obj2
+  void Init(data_size_t num_data, int weight_idx, int label2_idx, int query_idx);
+  //
 
-  /*!
-  * \brief Allocate space for label, weight (if exists), initial score (if exists) and query (if exists)
-  * \param num_data Number of data
-  * \param reference Reference metadata
-  */
-  void InitByReference(data_size_t num_data, const Metadata* reference);
-
-  /*!
-  * \brief Allocate space for label, weight (if exists), initial score (if exists) and query (if exists)
-  * \param num_data Number of data rows
-  * \param has_weights Whether the metadata has weights
-  * \param has_init_scores Whether the metadata has initial scores
-  * \param has_queries Whether the metadata has queries
-  * \param nclasses Number of classes for initial scores
-  */
-  void Init(data_size_t num_data, int32_t has_weights, int32_t has_init_scores, int32_t has_queries, int32_t nclasses);
 
   /*!
   * \brief Partition label by used indices
@@ -110,6 +93,10 @@ class Metadata {
   void SetLabel(const label_t* label, data_size_t len);
 
   void SetWeights(const label_t* weights, data_size_t len);
+
+  //obj2
+  void SetLabels2(const label_t* labels2, data_size_t len);
+  //
 
   void SetQuery(const data_size_t* query, data_size_t len);
 
@@ -155,18 +142,17 @@ class Metadata {
     weights_[idx] = value;
   }
 
+  //obj2
   /*!
-  * \brief Set initial scores for one record.  Note that init_score might have multiple columns and is stored in column format.
+  * \brief Set Label2 for one record
   * \param idx Index of this record
-  * \param values Initial score values for this record, one per class
+  * \param value Weight value of this record
   */
-  inline void SetInitScoreAt(data_size_t idx, const double* values) {
-    const auto nclasses = num_init_score_classes();
-    const double* val_ptr = values;
-    for (int i = idx; i < nclasses * num_data_; i += num_data_, ++val_ptr) {
-      init_score_[i] = *val_ptr;
-    }
+  inline void SetLabel2At(data_size_t idx, label_t value) {
+    labels2_[idx] = value;
   }
+  //
+
 
   /*!
   * \brief Set Query Id for one record
@@ -177,29 +163,7 @@ class Metadata {
     queries_[idx] = static_cast<data_size_t>(value);
   }
 
-  /*! \brief Load initial scores from file */
-  void LoadInitialScore(const std::string& data_filename);
 
-  /*!
-  * \brief Insert data from a given data to the current data at a specified index
-  * \param start_index The target index to begin the insertion
-  * \param count Number of records to insert
-  * \param labels Pointer to label data
-  * \param weights Pointer to weight data, or null
-  * \param init_scores Pointer to init-score data, or null
-  * \param queries Pointer to query data, or null
-  */
-  void InsertAt(data_size_t start_index,
-    data_size_t count,
-    const float* labels,
-    const float* weights,
-    const double* init_scores,
-    const int32_t* queries);
-
-  /*!
-  * \brief Perform any extra operations after all data has been loaded
-  */
-  void FinishLoad();
   /*!
   * \brief Get weights, if not exists, will return nullptr
   * \return Pointer of weights
@@ -211,6 +175,21 @@ class Metadata {
       return nullptr;
     }
   }
+
+  //obj2
+  /*!
+  * \brief Get labels2, if not exists, will return nullptr
+  * \return Pointer of labels2
+  */
+  inline const label_t* labels2() const {
+    if (!labels2_.empty()) {
+      return labels2_.data();
+    } else {
+      return nullptr;
+    }
+  }
+  //
+
 
   /*!
   * \brief Get data boundaries on queries, if not exists, will return nullptr
@@ -262,56 +241,50 @@ class Metadata {
   */
   inline int64_t num_init_score() const { return num_init_score_; }
 
-  /*!
-  * \brief Get number of classes
-  */
-  inline int32_t num_init_score_classes() const {
-    if (num_data_ && num_init_score_) {
-      return static_cast<int>(num_init_score_ / num_data_);
-    }
-    return 1;
-  }
-
   /*! \brief Disable copy */
   Metadata& operator=(const Metadata&) = delete;
   /*! \brief Disable copy */
   Metadata(const Metadata&) = delete;
 
-  #ifdef USE_CUDA_EXP
-
-  CUDAMetadata* cuda_metadata() const { return cuda_metadata_.get(); }
-
-  void CreateCUDAMetadata(const int gpu_device_id);
-
-  #endif  // USE_CUDA_EXP
-
  private:
+  /*! \brief Load initial scores from file */
+  void LoadInitialScore();
   /*! \brief Load wights from file */
   void LoadWeights();
+
+  //obj2
+  /*! \brief Load labels2 from file */
+  void LoadLabels2();
+  //
+
   /*! \brief Load query boundaries from file */
   void LoadQueryBoundaries();
-  /*! \brief Calculate query weights from queries */
-  void CalculateQueryWeights();
-  /*! \brief Calculate query boundaries from queries */
-  void CalculateQueryBoundaries();
-  /*! \brief Insert labels at the given index */
-  void InsertLabels(const label_t* labels, data_size_t start_index, data_size_t len);
-  /*! \brief Insert weights at the given index */
-  void InsertWeights(const label_t* weights, data_size_t start_index, data_size_t len);
-  /*! \brief Insert initial scores at the given index */
-  void InsertInitScores(const double* init_scores, data_size_t start_index, data_size_t len, data_size_t source_size);
-  /*! \brief Insert queries at the given index */
-  void InsertQueries(const data_size_t* queries, data_size_t start_index, data_size_t len);
+  /*! \brief Load query wights */
+  void LoadQueryWeights();
   /*! \brief Filename of current data */
   std::string data_filename_;
   /*! \brief Number of data */
   data_size_t num_data_;
+
   /*! \brief Number of weights, used to check correct weight file */
   data_size_t num_weights_;
+
+  //obj2
+  /*! \brief Number of weights, used to check correct weight file */
+  data_size_t num_labels2_;
+  //
+
   /*! \brief Label data */
   std::vector<label_t> label_;
+
   /*! \brief Weights data */
   std::vector<label_t> weights_;
+
+  //obj2
+  /*! \brief Weights data */
+  std::vector<label_t> labels2_;
+  //
+
   /*! \brief Query boundaries */
   std::vector<data_size_t> query_boundaries_;
   /*! \brief Query weights */
@@ -326,12 +299,15 @@ class Metadata {
   std::vector<data_size_t> queries_;
   /*! \brief mutex for threading safe call */
   std::mutex mutex_;
+
   bool weight_load_from_file_;
+
+  //obj2
+  bool label2_load_from_file_;
+  //
+
   bool query_load_from_file_;
   bool init_score_load_from_file_;
-  #ifdef USE_CUDA_EXP
-  std::unique_ptr<CUDAMetadata> cuda_metadata_;
-  #endif  // USE_CUDA_EXP
 };
 
 
@@ -339,14 +315,6 @@ class Metadata {
 class Parser {
  public:
   typedef const char* (*AtofFunc)(const char* p, double* out);
-
-  /*! \brief Default constructor */
-  Parser() {}
-
-  /*!
-  * \brief Constructor for customized parser. The constructor accepts content not path because need to save/load the config along with model string
-  */
-  explicit Parser(std::string) {}
 
   /*! \brief virtual destructor */
   virtual ~Parser() {}
@@ -365,58 +333,12 @@ class Parser {
   /*!
   * \brief Create an object of parser, will auto choose the format depend on file
   * \param filename One Filename of data
-  * \param header whether input file contains header
   * \param num_features Pass num_features of this data file if you know, <=0 means don't know
   * \param label_idx index of label column
   * \param precise_float_parser using precise floating point number parsing if true
   * \return Object of parser
   */
   static Parser* CreateParser(const char* filename, bool header, int num_features, int label_idx, bool precise_float_parser);
-
-  /*!
-  * \brief Create an object of parser, could use customized parser, or auto choose the format depend on file
-  * \param filename One Filename of data
-  * \param header whether input file contains header
-  * \param num_features Pass num_features of this data file if you know, <=0 means don't know
-  * \param label_idx index of label column
-  * \param precise_float_parser using precise floating point number parsing if true
-  * \param parser_config_str Customized parser config content
-  * \return Object of parser
-  */
-  static Parser* CreateParser(const char* filename, bool header, int num_features, int label_idx, bool precise_float_parser,
-                              std::string parser_config_str);
-
-  /*!
-  * \brief Generate parser config str used for custom parser initialization, may save values of label id and header
-  * \param filename One Filename of data
-  * \param parser_config_filename One Filename of parser config
-  * \param header whether input file contains header
-  * \param label_idx index of label column
-  * \return Parser config str
-  */
-  static std::string GenerateParserConfigStr(const char* filename, const char* parser_config_filename, bool header, int label_idx);
-};
-
-/*! \brief Interface for parser factory, used by customized parser */
-class ParserFactory {
- private:
-  ParserFactory() {}
-  std::map<std::string, std::function<Parser*(std::string)>> object_map_;
-
- public:
-  ~ParserFactory() {}
-  static ParserFactory& getInstance();
-  void Register(std::string class_name, std::function<Parser*(std::string)> objc);
-  Parser* getObject(std::string class_name, std::string config_str);
-};
-
-/*! \brief Interface for parser reflector, used by customized parser */
-class ParserReflector {
- public:
-  ParserReflector(std::string class_name, std::function<Parser*(std::string)> objc) {
-    ParserFactory::getInstance().Register(class_name, objc);
-  }
-  virtual ~ParserReflector() {}
 };
 
 /*! \brief The main class of data set,
@@ -443,27 +365,6 @@ class Dataset {
 
   /*! \brief Destructor */
   LIGHTGBM_EXPORT ~Dataset();
-
-  /*!
-  * \brief Initialize from the given reference
-  * \param num_data Number of data
-  * \param reference Reference dataset
-  */
-  LIGHTGBM_EXPORT void InitByReference(data_size_t num_data, const Dataset* reference) {
-    metadata_.InitByReference(num_data, &reference->metadata());
-  }
-
-  LIGHTGBM_EXPORT void InitStreaming(data_size_t num_data,
-                                     int32_t has_weights,
-                                     int32_t has_init_scores,
-                                     int32_t has_queries,
-                                     int32_t nclasses,
-                                     int32_t nthreads) {
-    metadata_.Init(num_data, has_weights, has_init_scores, has_queries, nclasses);
-    for (int i = 0; i < num_groups_; ++i) {
-      feature_groups_[i]->InitStreaming(nthreads);
-    }
-  }
 
   LIGHTGBM_EXPORT bool CheckAlign(const Dataset& other) const {
     if (num_features_ != other.num_features_) {
@@ -541,15 +442,6 @@ class Dataset {
         raw_data_[feat_ind][row_idx] = static_cast<float>(value);
       }
     }
-  }
-
-  inline void InsertMetadataAt(data_size_t start_index,
-    data_size_t count,
-    const label_t* labels,
-    const label_t* weights,
-    const double* init_scores,
-    const data_size_t* queries) {
-    metadata_.InsertAt(start_index, count, labels, weights, init_scores, queries);
   }
 
   inline int RealFeatureIndex(int fidx) const {
@@ -738,21 +630,6 @@ class Dataset {
     return feature_groups_[group]->FeatureGroupData();
   }
 
-  const void* GetColWiseData(
-    const int feature_group_index,
-    const int sub_feature_index,
-    uint8_t* bit_type,
-    bool* is_sparse,
-    std::vector<BinIterator*>* bin_iterator,
-    const int num_threads) const;
-
-  const void* GetColWiseData(
-    const int feature_group_index,
-    const int sub_feature_index,
-    uint8_t* bit_type,
-    bool* is_sparse,
-    BinIterator** bin_iterator) const;
-
   inline double RealThreshold(int i, uint32_t threshold) const {
     const int group = feature2group_[i];
     const int sub_feature = feature2subfeature_[i];
@@ -764,12 +641,6 @@ class Dataset {
     const int group = feature2group_[i];
     const int sub_feature = feature2subfeature_[i];
     return feature_groups_[group]->bin_mappers_[sub_feature]->ValueToBin(threshold_double);
-  }
-
-  inline int MaxRealCatValue(int i) const {
-    const int group = feature2group_[i];
-    const int sub_feature = feature2subfeature_[i];
-    return feature_groups_[group]->bin_mappers_[sub_feature]->MaxCatValue();
   }
 
   /*!
@@ -795,9 +666,6 @@ class Dataset {
 
   /*! \brief Get names of current data set */
   inline const std::vector<std::string>& feature_names() const { return feature_names_; }
-
-  /*! \brief Get content of parser config file */
-  inline const std::string parser_config_str() const { return parser_config_str_; }
 
   inline void set_feature_names(const std::vector<std::string>& feature_names) {
     if (feature_names.size() != static_cast<size_t>(num_total_features_)) {
@@ -843,18 +711,6 @@ class Dataset {
   /*! \brief Get Number of data */
   inline data_size_t num_data() const { return num_data_; }
 
-  /*! \brief Get whether FinishLoad is automatically called when pushing last row. */
-  inline bool wait_for_manual_finish() const { return wait_for_manual_finish_; }
-
-  /*! \brief Set whether the Dataset is finished automatically when last row is pushed or with a manual
-   *         MarkFinished API call.  Set to true for thread-safe streaming and/or if will be coalesced later.
-   *         FinishLoad should not be called on any Dataset that will be coalesced.
-   */
-  inline void set_wait_for_manual_finish(bool value) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    wait_for_manual_finish_ = value;
-  }
-
   /*! \brief Disable copy */
   Dataset& operator=(const Dataset&) = delete;
   /*! \brief Disable copy */
@@ -887,29 +743,7 @@ class Dataset {
     return raw_data_[numeric_feature_map_[feat_ind]].data();
   }
 
-  inline uint32_t feature_max_bin(const int inner_feature_index) const {
-    const int feature_group_index = Feature2Group(inner_feature_index);
-    const int sub_feature_index = feature2subfeature_[inner_feature_index];
-    return feature_groups_[feature_group_index]->feature_max_bin(sub_feature_index);
-  }
-
-  inline uint32_t feature_min_bin(const int inner_feature_index) const {
-    const int feature_group_index = Feature2Group(inner_feature_index);
-    const int sub_feature_index = feature2subfeature_[inner_feature_index];
-    return feature_groups_[feature_group_index]->feature_min_bin(sub_feature_index);
-  }
-
-  #ifdef USE_CUDA_EXP
-
-  const CUDAColumnData* cuda_column_data() const {
-    return cuda_column_data_.get();
-  }
-
-  #endif  // USE_CUDA_EXP
-
  private:
-  void CreateCUDAColumnData();
-
   std::string data_filename_;
   /*! \brief Store used features */
   std::vector<std::unique_ptr<FeatureGroup>> feature_groups_;
@@ -946,21 +780,10 @@ class Dataset {
   bool zero_as_missing_;
   std::vector<int> feature_need_push_zeros_;
   std::vector<std::vector<float>> raw_data_;
-  bool wait_for_manual_finish_;
   bool has_raw_;
   /*! map feature (inner index) to its index in the list of numeric (non-categorical) features */
   std::vector<int> numeric_feature_map_;
   int num_numeric_features_;
-  std::string device_type_;
-  int gpu_device_id_;
-  /*! \brief mutex for threading safe call */
-  std::mutex mutex_;
-
-  #ifdef USE_CUDA_EXP
-  std::unique_ptr<CUDAColumnData> cuda_column_data_;
-  #endif  // USE_CUDA_EXP
-
-  std::string parser_config_str_;
 };
 
 }  // namespace LightGBM
